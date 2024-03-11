@@ -1,66 +1,114 @@
-## Foundry
+# Manual ERC-20 Implementation
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## About
 
-Foundry consists of:
+This project is a CDP stable coin project. The properties of the stable coin are as follows:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- Relative Stability: pegged to $1.00 US
+- Stability Mechanism (Minting): Algorithmic (Decentralised)
+- Collateral Type Supported: Exogenous
+  - wBTC
+  - wETH
 
-## Documentation
+Chainlink Pricefeeds will be used to retrieve the price of collateral assets and determine whether positions are able to be liquidated.
 
-https://book.getfoundry.sh/
+## Table of contents
+
+1. [Getting started](#getting-started)
+   - [1.1 Requirements](#requirements)
+   - [1.2 Quickstart](#quickstart)
+2. [Usage](#usage)
+   - [2.1 Deploying Locally](#deploying-locally)
+   - [2.2 Deploying to a testnet or mainnet](#deploying-to-a-testnet-or-mainnet)
+3. [Testing](#testing)
+   - [3.1 Unit tests](#unit-tests)
+   - [3.2 Coverage](#test-coverage)
+4. [Additional Notes](#additional-notes)
+5. [Acknowledgements](#acknowledgements)
+
+## Getting Started
+
+### Requirements
+
+The following must be installed on your machine:
+
+- [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git/)
+- [foundry](https://book.getfoundry.sh/getting-started/installation)
+
+### Quickstart:
+
+```
+git clone https://github.com/MGM103/ERC-20_Implementation.git
+cd ERC-20_Implementation
+make build
+```
 
 ## Usage
 
-### Build
+### Deploying locally
 
-```shell
-$ forge build
+In one terminal run anvil. Anvil is a local Ethereum node, designed for development with Forge, akin to Ganache.
+
+```
+anvil
 ```
 
-### Test
+In another terminal run the following command to deploy:
 
-```shell
-$ forge test
+```
+make deploy
 ```
 
-### Format
+### Deploying to a testnet or mainnet
 
-```shell
-$ forge fmt
+1. **Setup environment variables**
+
+You'll want to set your `SEPOLIA_RPC_URL`, `PRIVATE_KEY` as environment variables. You can add them to a `.env` file.
+
+- `PRIVATE_KEY`: The private key of your account (like from [metamask](https://metamask.io/)). **NOTE:** FOR DEVELOPMENT, PLEASE USE A KEY THAT DOESN'T HAVE ANY REAL FUNDS ASSOCIATED WITH IT.
+  - You can [learn how to export it here](https://metamask.zendesk.com/hc/en-us/articles/360015289632-How-to-Export-an-Account-Private-Key).
+- `SEPOLIA_RPC_URL`: This is url of the sepolia testnet node you're working with. You can get setup with one for free from [Alchemy](https://alchemy.com/?a=673c802981)
+- `ETHERSCAN_API_KEY` to verify your contract on [Etherscan](https://etherscan.io/).
+
+2. **Get testnet ETH**
+
+Head over to [faucets.chain.link](https://faucets.chain.link/) and get some testnet ETH. You should see the ETH show up in your metamask.
+
+3. **Deploy**
+
+```
+make deploy ARGS="--network sepolia"
 ```
 
-### Gas Snapshots
+4. **Verify you contract**
 
-```shell
-$ forge snapshot
+```
+make verify
 ```
 
-### Anvil
+## Testing
 
-```shell
-$ anvil
+### Unit tests
+
+To run the unit tests for this project you can run the following commands:
+
+```
+forge test // run all tests
+forge test --mt <testFunctionName> // run specific test
 ```
 
-### Deploy
+### Test Coverage
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+To see the amount of coverage the tests in the project cover of the codebase you can run the following command:
+
+```
+forge coverage
 ```
 
-### Cast
+## Additional Notes
 
-```shell
-$ cast <subcommand>
-```
+If you are unfamiliar with the foundry smart contract development framework please refer to: https://book.getfoundry.sh/
 
-### Help
+## Acknowledgements
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Full credit must go to [Patrick Collins](https://github.com/PatrickAlphaC). He is a fantastic teacher of blockchain development and this project came from his [course](https://github.com/Cyfrin/foundry-full-course-f23). If you are interested in learning more please checkout his [youtube](https://www.youtube.com/@PatrickAlphaC).
