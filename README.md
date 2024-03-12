@@ -38,8 +38,8 @@ The following must be installed on your machine:
 ### Quickstart:
 
 ```
-git clone https://github.com/MGM103/ERC-20_Implementation.git
-cd ERC-20_Implementation
+git clone https://github.com/MGM103/CDP_Stable_Coin.git
+cd CDP_Stable_Coin
 make build
 ```
 
