@@ -21,9 +21,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
  * @notice The system should maintain overcollateralisation, at no point should the value of the collateral be less than or equal to the value of the stable coin.
  */
 contract DSCEngine is ReentrancyGuard {
-    /**
-     * ERRORS
-     */
+    /////ERRORS/////
     error DSCEngine__RequiresMoreThanZero();
     error DSCEngine__InvalidCollateralConstructorParams();
     error DSCEngine__DscMintFailed();
@@ -31,9 +29,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__CollateralDepositFailed(address collateralToken, uint256 amountCollateral);
     error DSCEngine__HealthFactorThresholdInsufficient(uint256 healthFactor);
 
-    /**
-     * STATE VARIABLES
-     */
+    /////STATE VARIABLES/////
     uint256 private constant LIQUIDATION_THRESHOLD = 50;
     uint256 private constant MINIMUM_HEALTH_FACTOR = 1;
     uint256 private constant ADDITIONAL_PRICE_FEED_PRECISION = 1e10;
@@ -47,14 +43,10 @@ contract DSCEngine is ReentrancyGuard {
         s_userCollateralDeposits;
     mapping(address user => uint256 amountDscMinted) private s_userDscMinted;
 
-    /**
-     * EVENTS
-     */
+    /////EVENTS/////
     event CollateralDeposited(address indexed user, address indexed collateralToken, uint256 indexed amountCollateral);
 
-    /**
-     * MODIFIERS
-     */
+    /////MODIFIERS/////
     modifier moreThanZero(uint256 amount) {
         if (amount <= 0) revert DSCEngine__RequiresMoreThanZero();
         _;
@@ -67,9 +59,7 @@ contract DSCEngine is ReentrancyGuard {
         _;
     }
 
-    /**
-     * FUNCTIONS
-     */
+    /////FUNCTIONS/////
     constructor(address[] memory tokenAddresses, address[] memory priceFeedAddresses, address DSCTokenAddress) {
         if (tokenAddresses.length != priceFeedAddresses.length) {
             revert DSCEngine__InvalidCollateralConstructorParams();
@@ -84,10 +74,15 @@ contract DSCEngine is ReentrancyGuard {
         i_dsc = DecentralisedStableCoin(DSCTokenAddress);
     }
 
-    /**
-     * EXTERNAL FUNCTIONS
-     */
-    function depositCollateralAndMintDsc() external {}
+    /////EXTERNAL FUNCTIONS/////
+    function depositCollateralAndMintDsc(
+        address collateralTokenAddress,
+        uint256 amountCollateral,
+        uint256 amountDscToMint
+    ) external {
+        depositCollateral(collateralTokenAddress, amountCollateral);
+        mintDsc(amountDscToMint);
+    }
 
     /**
      *
@@ -95,7 +90,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param amountCollateral The amount of collateral tokens that are being deposited
      */
     function depositCollateral(address collateralTokenAddress, uint256 amountCollateral)
-        external
+        public
         isPermittedCollateral(collateralTokenAddress)
         moreThanZero(amountCollateral)
         nonReentrant
@@ -115,7 +110,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param amountDscToMint The amount of DSC to mint
      * @notice The minter must have collateral at the value of the threshold ratio to mint DSC
      */
-    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant {
+    function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant {
         s_userDscMinted[msg.sender] += amountDscToMint;
         _revertIfHealthFactorThresholdInsufficient(msg.sender);
 
@@ -129,9 +124,7 @@ contract DSCEngine is ReentrancyGuard {
 
     function getHealthFactor() external view {}
 
-    /**
-     * PUBLIC & EXTERNAL VIEW FUNCTIONS
-     */
+    /////PUBLIC & EXTERNAL VIEW FUNCTIONS/////
     function getTotalCollateralValueInUsd(address user) public view returns (uint256 totalCollateralValueUsd) {
         for (uint256 i = 0; i < s_collateralAddresses.length; i++) {
             address token = s_collateralAddresses[i];
@@ -153,10 +146,7 @@ contract DSCEngine is ReentrancyGuard {
         return (uint256(price) * ADDITIONAL_PRICE_FEED_PRECISION * amountCollateral) / TOKEN_PRECISION;
     }
 
-    /**
-     * PRIVATE & INTERNAL VIEW FUNCTIONS
-     */
-
+    /////PRIVATE & INTERNAL VIEW FUNCTIONS/////
     function _getCDPInfo(address user) private view returns (uint256 dscAmountMinted, uint256 collateralValueInUsd) {
         dscAmountMinted = s_userDscMinted[user];
         collateralValueInUsd = getTotalCollateralValueInUsd(user);
