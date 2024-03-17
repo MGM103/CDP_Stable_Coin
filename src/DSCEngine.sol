@@ -25,6 +25,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__RequiresMoreThanZero();
     error DSCEngine__InvalidCollateralConstructorParams();
     error DSCEngine__DscMintFailed();
+    error DSCEngine__TransferFailed();
     error DSCEngine__CollateralIsNotPermitted(address invalidCollateral);
     error DSCEngine__CollateralDepositFailed(address collateralToken, uint256 amountCollateral);
     error DSCEngine__HealthFactorThresholdInsufficient(uint256 healthFactor);
@@ -45,6 +46,7 @@ contract DSCEngine is ReentrancyGuard {
 
     /////EVENTS/////
     event CollateralDeposited(address indexed user, address indexed collateralToken, uint256 indexed amountCollateral);
+    event CollateralRedeemed(address indexed user, address indexed collateralToken, uint256 indexed amountCollateral);
 
     /////MODIFIERS/////
     modifier moreThanZero(uint256 amount) {
@@ -110,9 +112,32 @@ contract DSCEngine is ReentrancyGuard {
         if (!success) revert DSCEngine__CollateralDepositFailed(collateralTokenAddress, amountCollateral);
     }
 
-    function redeemCollateralForDsc() external {}
+    /**
+     * This function burns DSC debt and redeems the collateral in a single transaction
+     * @param redeemingCollateral the collateral token to redeem
+     * @param amountCollateralRedeeming the amount of collateral to redeem
+     * @param amountDsc the amount of stable coin debt being burnt
+     */
+    function redeemCollateralForDsc(address redeemingCollateral, uint256 amountCollateralRedeeming, uint256 amountDsc)
+        external
+    {
+        burnDsc(amountDsc);
+        redeemCollateral(redeemingCollateral, amountCollateralRedeeming);
+    }
 
-    function redeemCollateral() external {}
+    function redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming)
+        public
+        moreThanZero(amountCollateralRedeeming)
+        nonReentrant
+    {
+        s_userCollateralDeposits[msg.sender][redeemingCollateral] -= amountCollateralRedeeming;
+        emit CollateralRedeemed(msg.sender, redeemingCollateral, amountCollateralRedeeming);
+
+        bool success = IERC20(redeemingCollateral).transfer(msg.sender, amountCollateralRedeeming);
+        if (!success) revert DSCEngine__TransferFailed();
+
+        _revertIfHealthFactorThresholdInsufficient(msg.sender);
+    }
 
     /**
      * @param amountDscToMint The amount of DSC to mint
@@ -126,7 +151,13 @@ contract DSCEngine is ReentrancyGuard {
         if (!minted) revert DSCEngine__DscMintFailed();
     }
 
-    function burnDsc() external {}
+    function burnDsc(uint256 amountDsc) public moreThanZero(amountDsc) {
+        s_userDscMinted[msg.sender] -= amountDsc;
+        bool success = i_dsc.transferFrom(msg.sender, address(this), amountDsc);
+
+        if (!success) revert DSCEngine__TransferFailed();
+        i_dsc.burn(amountDsc);
+    }
 
     function liquidate() external {}
 
@@ -177,6 +208,8 @@ contract DSCEngine is ReentrancyGuard {
     function _revertIfHealthFactorThresholdInsufficient(address user) internal view {
         uint256 userHealthFactor = _healthFactor(user);
 
-        if (userHealthFactor < MINIMUM_HEALTH_FACTOR) {}
+        if (userHealthFactor < MINIMUM_HEALTH_FACTOR) {
+            revert DSCEngine__HealthFactorThresholdInsufficient(userHealthFactor);
+        }
     }
 }
