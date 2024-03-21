@@ -194,8 +194,6 @@ contract DSCEngine is ReentrancyGuard {
         _revertIfHealthFactorThresholdInsufficient(msg.sender);
     }
 
-    function getHealthFactor() external view {}
-
     /////PUBLIC & EXTERNAL VIEW FUNCTIONS/////
     function getTokenAmountFromUsdValue(address collateralToken, uint256 amountUsdInWei)
         public
