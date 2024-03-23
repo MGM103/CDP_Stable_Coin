@@ -228,6 +228,14 @@ contract DSCEngine is ReentrancyGuard {
         return (uint256(price) * ADDITIONAL_PRICE_FEED_PRECISION * amountCollateral) / TOKEN_PRECISION;
     }
 
+    function getCDPInformation(address user)
+        external
+        view
+        returns (uint256 dscAmountMinted, uint256 collateralValueInUsd)
+    {
+        return _getCDPInfo(user);
+    }
+
     /////PRIVATE & INTERNAL VIEW FUNCTIONS/////
     function _redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming, address from, address to)
         private
