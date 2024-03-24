@@ -236,6 +236,10 @@ contract DSCEngine is ReentrancyGuard {
         return _getCDPInfo(user);
     }
 
+    function getHealthFactor(address user) external view returns (uint256) {
+        return _healthFactor(user);
+    }
+
     /////PRIVATE & INTERNAL VIEW FUNCTIONS/////
     function _redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming, address from, address to)
         private
@@ -276,9 +280,18 @@ contract DSCEngine is ReentrancyGuard {
      */
     function _healthFactor(address user) internal view returns (uint256) {
         (uint256 totalDscMinted, uint256 totalCollateralValueUsd) = _getCDPInfo(user);
-        uint256 thresholdAdjustedCollateral = (totalCollateralValueUsd * LIQUIDATION_THRESHOLD) / LIQUATION_PRECISION;
 
-        return (thresholdAdjustedCollateral * TOKEN_PRECISION) / totalDscMinted;
+        return _calcHealthFactor(totalCollateralValueUsd, totalDscMinted);
+    }
+
+    function _calcHealthFactor(uint256 totalCollateralValueInUsd, uint256 amountDscMinted)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 thresholdAdjustedCollateral = (totalCollateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUATION_PRECISION;
+
+        return (thresholdAdjustedCollateral * TOKEN_PRECISION) / amountDscMinted;
     }
 
     function _revertIfHealthFactorThresholdInsufficient(address user) internal view {
@@ -287,5 +300,22 @@ contract DSCEngine is ReentrancyGuard {
         if (userHealthFactor < MINIMUM_HEALTH_FACTOR) {
             revert DSCEngine__HealthFactorThresholdInsufficient(userHealthFactor);
         }
+    }
+
+    /////PUBLIC & EXTERNAL PURE FUNCTIONS/////
+    function calcHealthFactor(uint256 totalCollateralValueInUsd, uint256 dscAmountMinted)
+        public
+        pure
+        returns (uint256)
+    {
+        return _calcHealthFactor(totalCollateralValueInUsd, dscAmountMinted);
+    }
+
+    function getPrecision() external pure returns (uint256) {
+        return TOKEN_PRECISION;
+    }
+
+    function getAdditionalPrecision() external pure returns (uint256) {
+        return ADDITIONAL_PRICE_FEED_PRECISION;
     }
 }

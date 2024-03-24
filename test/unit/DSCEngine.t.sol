@@ -10,11 +10,13 @@ import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzepplin/contracts/mocks/ERC20Mock.sol";
 
 contract DSCEngineTest is Test {
+    // CONSTANTS
     address USER = makeAddr("USER");
     uint256 public constant AMOUNT_OF_COLLATERAL = 10 ether;
     uint256 public constant START_WETH_BAL = 20 ether;
     uint256 public constant WETH_PRICE = 4000e18;
 
+    // STATE VARIABLES
     DeployDSC deployerDSC;
     HelperConfig helperConfig;
     DSCEngine dscEngine;
@@ -22,6 +24,9 @@ contract DSCEngineTest is Test {
     address wethToken;
     address wethUsdPriceFeed;
     address btcUsdPriceFeed;
+
+    // EVENTS
+    event CollateralDeposited(address indexed user, address indexed collateralToken, uint256 indexed amountCollateral);
 
     function setUp() public {
         deployerDSC = new DeployDSC();
@@ -84,6 +89,15 @@ contract DSCEngineTest is Test {
         vm.stopPrank();
     }
 
+    function testCollateralDepositEventEmitted() public {
+        vm.startPrank(USER);
+        ERC20Mock(wethToken).approve(address(dscEngine), AMOUNT_OF_COLLATERAL);
+        vm.expectEmit();
+        emit CollateralDeposited(USER, wethToken, AMOUNT_OF_COLLATERAL);
+        dscEngine.depositCollateral(wethToken, AMOUNT_OF_COLLATERAL);
+        vm.stopPrank();
+    }
+
     modifier depositedCollateral() {
         vm.startPrank(USER);
         ERC20Mock(wethToken).approve(address(dscEngine), AMOUNT_OF_COLLATERAL);
@@ -100,4 +114,43 @@ contract DSCEngineTest is Test {
         assertEq(dscMintedBal, expectedDscMintedBal);
         assertEq(collateralValUsd, expectedCollateralValUsd);
     }
+
+    ///////////////////////////
+    /////////MINT DSC//////////
+    function testMintDSCRevertsIfZeroDSCMinted() public {
+        vm.startPrank(USER);
+        vm.expectRevert(DSCEngine.DSCEngine__RequiresMoreThanZero.selector);
+        dscEngine.mintDsc(0);
+        vm.stopPrank();
+    }
+
+    function testMintDscUpdatesUserDscMintedAmount() public depositedCollateral {
+        vm.startPrank(USER);
+        dscEngine.mintDsc(2 ether);
+        vm.stopPrank();
+
+        (uint256 dscMinted,) = dscEngine.getCDPInformation(USER);
+        assertEq(dscMinted, 2 ether);
+    }
+
+    function testRevertsIfMintInvalidatesHealthFactor() public depositedCollateral {
+        uint256 dscMintAmount = 40001 ether;
+        (, uint256 collateralValUsd) = dscEngine.getCDPInformation(USER);
+        console.log("Collateral Value: ", collateralValUsd);
+        console.log("DSC Mint Amount: ", dscMintAmount);
+        uint256 expectedHealthFactor = dscEngine.calcHealthFactor(collateralValUsd, dscMintAmount);
+        console.log("Expected Health Factor: ", expectedHealthFactor);
+
+        vm.startPrank(USER);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DSCEngine.DSCEngine__HealthFactorThresholdInsufficient.selector, expectedHealthFactor
+            )
+        );
+        dscEngine.mintDsc(dscMintAmount);
+        vm.stopPrank();
+    }
+
+    ///////////////////////////
+    /////REDEEM COLLATERAL/////
 }
