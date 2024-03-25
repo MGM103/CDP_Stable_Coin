@@ -115,6 +115,14 @@ contract DSCEngineTest is Test {
         assertEq(collateralValUsd, expectedCollateralValUsd);
     }
 
+    function testHealthFactorAfterDeposit() public depositedCollateral {
+        (uint256 dscMintedBal, uint256 collateralValUsd) = dscEngine.getCDPInformation(USER);
+        uint256 expectedHealthFactor = type(uint256).max;
+
+        uint256 healthFactor = dscEngine.calcHealthFactor(collateralValUsd, dscMintedBal);
+        assertEq(healthFactor, expectedHealthFactor);
+    }
+
     ///////////////////////////
     /////////MINT DSC//////////
     function testMintDSCRevertsIfZeroDSCMinted() public {
@@ -136,10 +144,10 @@ contract DSCEngineTest is Test {
     function testRevertsIfMintInvalidatesHealthFactor() public depositedCollateral {
         uint256 dscMintAmount = 40001 ether;
         (, uint256 collateralValUsd) = dscEngine.getCDPInformation(USER);
-        console.log("Collateral Value: ", collateralValUsd);
-        console.log("DSC Mint Amount: ", dscMintAmount);
+        // console.log("Collateral Value: ", collateralValUsd);
+        // console.log("DSC Mint Amount: ", dscMintAmount);
         uint256 expectedHealthFactor = dscEngine.calcHealthFactor(collateralValUsd, dscMintAmount);
-        console.log("Expected Health Factor: ", expectedHealthFactor);
+        // console.log("Expected Health Factor: ", expectedHealthFactor);
 
         vm.startPrank(USER);
         vm.expectRevert(
