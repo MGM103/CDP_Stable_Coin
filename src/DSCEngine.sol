@@ -29,7 +29,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__PositionNotLiquidatable();
     error DSCEngine__LiquidationDidNotImproveHealthFactor();
     error DSCEngine__CollateralIsNotPermitted(address invalidCollateral);
-    error DSCEngine__CollateralDepositFailed(address collateralToken, uint256 amountCollateral);
+    error DSCEngine__CollateralDepositTransferFailed(address collateralToken, uint256 amountCollateral);
     error DSCEngine__HealthFactorThresholdInsufficient(uint256 healthFactor);
 
     /////STATE VARIABLES/////
@@ -117,7 +117,7 @@ contract DSCEngine is ReentrancyGuard {
         emit CollateralDeposited(msg.sender, collateralTokenAddress, amountCollateral);
 
         bool success = IERC20(collateralTokenAddress).transferFrom(msg.sender, address(this), amountCollateral);
-        if (!success) revert DSCEngine__CollateralDepositFailed(collateralTokenAddress, amountCollateral);
+        if (!success) revert DSCEngine__CollateralDepositTransferFailed(collateralTokenAddress, amountCollateral);
     }
 
     /**
@@ -128,6 +128,8 @@ contract DSCEngine is ReentrancyGuard {
      */
     function redeemCollateralForDsc(address redeemingCollateral, uint256 amountCollateralRedeeming, uint256 amountDsc)
         external
+        isPermittedCollateral(redeemingCollateral)
+        moreThanZero(amountCollateralRedeeming)
     {
         burnDsc(amountDsc);
         redeemCollateral(redeemingCollateral, amountCollateralRedeeming);
@@ -136,6 +138,7 @@ contract DSCEngine is ReentrancyGuard {
     function redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming)
         public
         moreThanZero(amountCollateralRedeeming)
+        isPermittedCollateral(redeemingCollateral)
         nonReentrant
     {
         _redeemCollateral(redeemingCollateral, amountCollateralRedeeming, msg.sender, msg.sender);
@@ -240,6 +243,10 @@ contract DSCEngine is ReentrancyGuard {
         return _healthFactor(user);
     }
 
+    function getUserCollateralTypeDepositAmount(address user, address collateralToken) public view returns (uint256) {
+        return s_userCollateralDeposits[user][collateralToken];
+    }
+
     /////PRIVATE & INTERNAL VIEW FUNCTIONS/////
     function _redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming, address from, address to)
         private
@@ -318,9 +325,5 @@ contract DSCEngine is ReentrancyGuard {
 
     function getAdditionalPrecision() external pure returns (uint256) {
         return ADDITIONAL_PRICE_FEED_PRECISION;
-    }
-
-    function getUserCollateralTypeDepositAmount(address user, address collateralToken) public view returns (uint256) {
-        return s_userCollateralDeposits[user][collateralToken];
     }
 }
