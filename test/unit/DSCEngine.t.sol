@@ -8,6 +8,7 @@ import {DecentralisedStableCoin} from "../../src/DecentralisedStableCoin.sol";
 import {MockFailedTransfer} from "../mocks/MockFailedTransfer.sol";
 import {MockFailedTransferFrom} from "../mocks/MockFailedTransferFrom.sol";
 import {MockFailedMint} from "../mocks/MockFailedMint.sol";
+import {MockDecreaseHealthFactorDSC} from "../mocks/MockDecreaseHealthFactorDSC.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzepplin/contracts/mocks/ERC20Mock.sol";
@@ -189,10 +190,7 @@ contract DSCEngineTest is Test {
     function testRevertsIfMintInvalidatesHealthFactor() public depositedCollateral {
         uint256 dscMintAmount = 40001 ether;
         (, uint256 collateralValUsd) = dscEngine.getCDPInformation(USER);
-        // console.log("Collateral Value: ", collateralValUsd);
-        // console.log("DSC Mint Amount: ", dscMintAmount);
         uint256 expectedHealthFactor = dscEngine.calcHealthFactor(collateralValUsd, dscMintAmount);
-        // console.log("Expected Health Factor: ", expectedHealthFactor);
 
         vm.startPrank(USER);
         vm.expectRevert(
@@ -429,24 +427,57 @@ contract DSCEngineTest is Test {
     }
 
     function testLiquidateRevertsIfCDPHealthy() public depositedCollateralAndMintedDsc {
-        uint256 debtToCover = 1000e18;
+        uint256 debtToCover = 1000 ether;
+        ERC20Mock(address(wethToken)).mint(LIQUIDATOR, AMOUNT_OF_COLLATERAL);
 
         vm.startPrank(LIQUIDATOR);
+        ERC20Mock(wethToken).approve(address(dscEngine), AMOUNT_OF_COLLATERAL);
+        dscEngine.depositCollateralAndMintDsc(wethToken, AMOUNT_OF_COLLATERAL, debtToCover);
         vm.expectRevert(DSCEngine.DSCEngine__PositionNotLiquidatable.selector);
         dscEngine.liquidate(wethToken, USER, debtToCover);
         vm.stopPrank();
     }
 
-    // function testLiquidateUpdatesBalsAndEmitsEvents() public depositedCollateral mintMaxAmountDsc {
-    //     uint256 debtToCover = 5500e18;
+    function testMustImproveHealthFactorOnLiquidation() public {
+        address owner = msg.sender;
+        uint256 dscMintAmount = 100 ether; // Amount dsc minted by user & liquidator
+        uint256 debtToCover = 20 ether; // Debt re-paid by liquidator
+        int256 ethUsdNewPrice = 18e8; // 1 ETH = $18
+        uint256 collateralToCover = 1 ether; // Collateral deposited by liquidator
 
-    //     // Decrease the price of weth
-    //     int256 newWethPrice = 3000e8;
-    //     MockV3Aggregator(wethUsdPriceFeed).updateAnswer(newWethPrice);
+        // Mock DSC setup
+        vm.prank(owner);
+        MockDecreaseHealthFactorDSC mockDsc = new MockDecreaseHealthFactorDSC(wethUsdPriceFeed);
 
-    //     vm.startPrank(LIQUIDATOR);
-    //     ERC20Mock(address(dsc)).approve(address(dscEngine), debtToCover);
-    //     dscEngine.liquidate(wethToken, USER, debtToCover);
-    //     vm.stopPrank();
-    // }
+        // Mock DSC Engine setup
+        tokenAddresses = [wethToken];
+        priceFeedAddresses = [wethUsdPriceFeed];
+        vm.startPrank(owner);
+        DSCEngine mockDscEngine = new DSCEngine(tokenAddresses, priceFeedAddresses, address(mockDsc));
+        mockDsc.transferOwnership(address(mockDscEngine));
+        vm.stopPrank();
+
+        // User CDP setup
+        vm.startPrank(USER);
+        ERC20Mock(wethToken).approve(address(mockDscEngine), AMOUNT_OF_COLLATERAL);
+        mockDscEngine.depositCollateralAndMintDsc(wethToken, AMOUNT_OF_COLLATERAL, dscMintAmount);
+        vm.stopPrank();
+
+        // Liquidator collateral setup
+        ERC20Mock(wethToken).mint(LIQUIDATOR, collateralToCover);
+
+        // Liquidate User Position Setup
+        vm.startPrank(LIQUIDATOR);
+        ERC20Mock(wethToken).approve(address(mockDscEngine), collateralToCover);
+        mockDscEngine.depositCollateralAndMintDsc(wethToken, collateralToCover, dscMintAmount);
+        mockDsc.approve(address(mockDscEngine), debtToCover);
+
+        // Update price to lower val to decrease health factor below threshold
+        MockV3Aggregator(wethUsdPriceFeed).updateAnswer(ethUsdNewPrice);
+
+        // Execute Liquidation
+        vm.expectRevert(DSCEngine.DSCEngine__LiquidationDidNotImproveHealthFactor.selector);
+        mockDscEngine.liquidate(wethToken, USER, debtToCover);
+        vm.stopPrank();
+    }
 }
