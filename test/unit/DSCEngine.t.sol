@@ -20,6 +20,7 @@ contract DSCEngineTest is Test {
     address LIQUIDATOR = makeAddr("LIQUIDATOR");
     uint256 public constant AMOUNT_OF_COLLATERAL = 10 ether;
     uint256 public constant START_WETH_BAL = 20 ether;
+    uint256 public constant DEBT_TO_COVER = 20000 ether;
     uint256 public constant WETH_PRICE = 4000e18;
 
     // STATE VARIABLES
@@ -427,14 +428,14 @@ contract DSCEngineTest is Test {
     }
 
     function testLiquidateRevertsIfCDPHealthy() public depositedCollateralAndMintedDsc {
-        uint256 debtToCover = 1000 ether;
+        // uint256 debtToCover = 1000 ether;
         ERC20Mock(address(wethToken)).mint(LIQUIDATOR, AMOUNT_OF_COLLATERAL);
 
         vm.startPrank(LIQUIDATOR);
         ERC20Mock(wethToken).approve(address(dscEngine), AMOUNT_OF_COLLATERAL);
-        dscEngine.depositCollateralAndMintDsc(wethToken, AMOUNT_OF_COLLATERAL, debtToCover);
+        dscEngine.depositCollateralAndMintDsc(wethToken, AMOUNT_OF_COLLATERAL, DEBT_TO_COVER);
         vm.expectRevert(DSCEngine.DSCEngine__PositionNotLiquidatable.selector);
-        dscEngine.liquidate(wethToken, USER, debtToCover);
+        dscEngine.liquidate(wethToken, USER, DEBT_TO_COVER);
         vm.stopPrank();
     }
 
@@ -479,5 +480,56 @@ contract DSCEngineTest is Test {
         vm.expectRevert(DSCEngine.DSCEngine__LiquidationDidNotImproveHealthFactor.selector);
         mockDscEngine.liquidate(wethToken, USER, debtToCover);
         vm.stopPrank();
+    }
+
+    modifier liquidated() {
+        uint256 amountDscToMint = 20000 ether;
+        int256 wethUsdNewPrice = 3999e8;
+
+        // Setup user CDP
+        vm.startPrank(USER);
+        ERC20Mock(wethToken).approve(address(dscEngine), AMOUNT_OF_COLLATERAL);
+        dscEngine.depositCollateralAndMintDsc(wethToken, AMOUNT_OF_COLLATERAL, amountDscToMint);
+        vm.stopPrank();
+
+        // Decrease the price of weth and bring the health factor below min threshold
+        uint256 userHealthFactor = dscEngine.getHealthFactor(USER);
+        MockV3Aggregator(wethUsdPriceFeed).updateAnswer(wethUsdNewPrice);
+        userHealthFactor = dscEngine.getHealthFactor(USER);
+
+        // Mint DSC and liquidate the user
+        vm.startPrank(LIQUIDATOR);
+        ERC20Mock(wethToken).mint(LIQUIDATOR, START_WETH_BAL);
+        ERC20Mock(wethToken).approve(address(dscEngine), START_WETH_BAL);
+        dscEngine.depositCollateralAndMintDsc(wethToken, START_WETH_BAL, amountDscToMint);
+        dsc.approve(address(dscEngine), DEBT_TO_COVER);
+        dscEngine.liquidate(wethToken, USER, DEBT_TO_COVER);
+        vm.stopPrank();
+        _;
+    }
+
+    function testLiquidationPayoutIsCorrect() public liquidated {
+        uint256 liquidatorWethBal = ERC20Mock(wethToken).balanceOf(LIQUIDATOR);
+        uint256 expectedPayout = dscEngine.getTokenAmountFromUsdValue(wethToken, DEBT_TO_COVER)
+            + (dscEngine.getTokenAmountFromUsdValue(wethToken, DEBT_TO_COVER) / dscEngine.getLiquidationBonusPercentage());
+
+        assertEq(liquidatorWethBal, expectedPayout);
+    }
+
+    function testUserStillHasCDP() public liquidated {
+        uint256 liquidatedCollateralAmount = dscEngine.getTokenAmountFromUsdValue(wethToken, DEBT_TO_COVER)
+            + (dscEngine.getTokenAmountFromUsdValue(wethToken, DEBT_TO_COVER) / dscEngine.getLiquidationBonusPercentage());
+        uint256 expectedCollateralAmount = AMOUNT_OF_COLLATERAL - liquidatedCollateralAmount;
+        uint256 expectedDscAmount = 0 ether;
+        (uint256 remainingDsc, uint256 remainingCollateralValUsd) = dscEngine.getCDPInformation(USER);
+        uint256 remainingCollateral = dscEngine.getTokenAmountFromUsdValue(wethToken, remainingCollateralValUsd);
+
+        assertEq(expectedCollateralAmount, remainingCollateral);
+        assertEq(expectedDscAmount, remainingDsc);
+    }
+
+    function testLiquidatorNowhasCDP() public liquidated {
+        (uint256 dscAmountMinted,) = dscEngine.getCDPInformation(LIQUIDATOR);
+        assertEq(dscAmountMinted, DEBT_TO_COVER);
     }
 }
