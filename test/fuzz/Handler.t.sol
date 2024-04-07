@@ -9,12 +9,15 @@ import {ERC20Mock} from "@openzepplin/contracts/mocks/ERC20Mock.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {DecentralisedStableCoin} from "../../src/DecentralisedStableCoin.sol";
+import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
 
 contract Handler is Test {
     DSCEngine dscEngine;
     DecentralisedStableCoin dsc;
     ERC20Mock wethToken;
     ERC20Mock wbtcToken;
+    MockV3Aggregator wethUsdPriceFeed;
+    MockV3Aggregator wbtcUsdPriceFeed;
 
     uint256 private constant MAX_DEPOSIT_AMOUNT = type(uint96).max;
     address[] public knownDepositors;
@@ -25,7 +28,9 @@ contract Handler is Test {
 
         address[] memory permittedCollateralTokens = dscEngine.getPermittedCollateralTokens();
         wethToken = ERC20Mock(permittedCollateralTokens[0]);
+        wethUsdPriceFeed = MockV3Aggregator(dscEngine.getCollateralTokenPriceFeed(permittedCollateralTokens[0]));
         wbtcToken = ERC20Mock(permittedCollateralTokens[1]);
+        wbtcUsdPriceFeed = MockV3Aggregator(dscEngine.getCollateralTokenPriceFeed(permittedCollateralTokens[1]));
     }
 
     ///////////////////////
@@ -54,6 +59,12 @@ contract Handler is Test {
 
         dscEngine.redeemCollateral(address(collateralType), amountCollateral);
     }
+
+    // Price plumets too quickly the invariant is invalidated
+    // function updateCollateralPrice(uint96 price) public {
+    //     int256 newPriceInt = int256(uint256(price));
+    //     wethUsdPriceFeed.updateAnswer(newPriceInt);
+    // }
 
     function mintDsc(uint256 amountDsc, uint256 userSeed) public {
         address user = _getKnownDepositor(userSeed);
