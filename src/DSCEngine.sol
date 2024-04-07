@@ -21,7 +21,9 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
  * @notice The system should maintain overcollateralisation, at no point should the value of the collateral be less than or equal to the value of the stable coin.
  */
 contract DSCEngine is ReentrancyGuard {
-    /////ERRORS/////
+    ////////////
+    // ERRORS //
+    ////////////
     error DSCEngine__RequiresMoreThanZero();
     error DSCEngine__InvalidCollateralConstructorParams();
     error DSCEngine__DscMintFailed();
@@ -32,7 +34,9 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__CollateralDepositTransferFailed(address collateralToken, uint256 amountCollateral);
     error DSCEngine__HealthFactorThresholdInsufficient(uint256 healthFactor);
 
-    /////STATE VARIABLES/////
+    /////////////////////
+    // STATE VARIABLES //
+    /////////////////////
     uint256 private constant LIQUIDATION_THRESHOLD = 50;
     uint256 private constant MINIMUM_HEALTH_FACTOR = 1e18;
     uint256 private constant ADDITIONAL_PRICE_FEED_PRECISION = 1e10;
@@ -47,7 +51,9 @@ contract DSCEngine is ReentrancyGuard {
         s_userCollateralDeposits;
     mapping(address user => uint256 amountDscMinted) private s_userDscMinted;
 
-    /////EVENTS/////
+    ////////////
+    // EVENTS //
+    ////////////
     event CollateralDeposited(address indexed user, address indexed collateralToken, uint256 indexed amountCollateral);
     event CollateralRedeemed(
         address indexed redeemedFrom,
@@ -56,7 +62,9 @@ contract DSCEngine is ReentrancyGuard {
         uint256 amountCollateral
     );
 
-    /////MODIFIERS/////
+    ///////////////
+    // MODIFIERS //
+    ///////////////
     modifier moreThanZero(uint256 amount) {
         if (amount <= 0) revert DSCEngine__RequiresMoreThanZero();
         _;
@@ -69,7 +77,9 @@ contract DSCEngine is ReentrancyGuard {
         _;
     }
 
-    /////FUNCTIONS/////
+    ///////////////
+    // FUNCTIONS //
+    ///////////////
     constructor(address[] memory tokenAddresses, address[] memory priceFeedAddresses, address DSCTokenAddress) {
         if (tokenAddresses.length != priceFeedAddresses.length) {
             revert DSCEngine__InvalidCollateralConstructorParams();
@@ -84,7 +94,9 @@ contract DSCEngine is ReentrancyGuard {
         i_dsc = DecentralisedStableCoin(DSCTokenAddress);
     }
 
-    /////EXTERNAL FUNCTIONS/////
+    ////////////////////////
+    // EXTERNAL FUNCTIONS //
+    ////////////////////////
 
     /**
      * @param collateralTokenAddress the address of the ERC-20 token that is being deposited as collateral
@@ -197,7 +209,9 @@ contract DSCEngine is ReentrancyGuard {
         _revertIfHealthFactorThresholdInsufficient(msg.sender);
     }
 
-    /////PUBLIC & EXTERNAL VIEW FUNCTIONS/////
+    //////////////////////////////////////
+    // PUBLIC & EXTERNAL VIEW FUNCTIONS //
+    //////////////////////////////////////
     function getTokenAmountFromUsdValue(address collateralToken, uint256 amountUsdInWei)
         public
         view
@@ -231,6 +245,14 @@ contract DSCEngine is ReentrancyGuard {
         return (uint256(price) * ADDITIONAL_PRICE_FEED_PRECISION * amountCollateral) / TOKEN_PRECISION;
     }
 
+    function getUserCollateralTypeDepositAmount(address user, address collateralToken) public view returns (uint256) {
+        return s_userCollateralDeposits[user][collateralToken];
+    }
+
+    function getPermittedCollateralTokens() public view returns (address[] memory) {
+        return s_collateralAddresses;
+    }
+
     function getCDPInformation(address user)
         external
         view
@@ -243,11 +265,9 @@ contract DSCEngine is ReentrancyGuard {
         return _healthFactor(user);
     }
 
-    function getUserCollateralTypeDepositAmount(address user, address collateralToken) public view returns (uint256) {
-        return s_userCollateralDeposits[user][collateralToken];
-    }
-
-    /////PRIVATE & INTERNAL VIEW FUNCTIONS/////
+    ///////////////////////////////////////
+    // PRIVATE & INTERNAL VIEW FUNCTIONS //
+    ///////////////////////////////////////
     function _redeemCollateral(address redeemingCollateral, uint256 amountCollateralRedeeming, address from, address to)
         private
     {
@@ -310,7 +330,9 @@ contract DSCEngine is ReentrancyGuard {
         }
     }
 
-    /////PUBLIC & EXTERNAL PURE FUNCTIONS/////
+    //////////////////////////////////////
+    // PUBLIC & EXTERNAL PURE FUNCTIONS //
+    //////////////////////////////////////
     function calcHealthFactor(uint256 totalCollateralValueInUsd, uint256 dscAmountMinted)
         public
         pure
