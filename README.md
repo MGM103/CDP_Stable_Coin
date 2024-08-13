@@ -1,4 +1,4 @@
-# Manual ERC-20 Implementation
+# Collateralized Debt Position Stable Coin
 
 ## About
 
